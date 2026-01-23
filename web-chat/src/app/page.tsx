@@ -21,7 +21,7 @@ export default function Page() {
     return id;
   }, []);
 
-  async function send() {
+async function send() {
     const text = input.trim();
     if (!text || busy) return;
 
@@ -42,10 +42,17 @@ export default function Page() {
       });
 
       const data = await res.json();
-      const reply = data?.reply ?? "ขออภัย ระบบไม่สามารถตอบได้ในขณะนี้";
+      
+      // --- แก้ไขจุดนี้: ดึงข้อความจริงจาก API (data.reply) ---
+      // เครื่องหมาย ?? หมายถึง ถ้า API ไม่ส่ง reply มา ให้ใช้ข้อความข้างหลังแทน
+      const reply = data?.reply ?? "ระบบตอบกลับมาแล้ว แต่ไม่มีข้อความ";
+      
       setMessages((m) => [...m, { role: "assistant", text: reply }]);
-    } catch {
-      setMessages((m) => [...m, { role: "assistant", text: "เกิดข้อผิดพลาดในการเชื่อมต่อ" }]);
+
+    } catch (err) {
+      // กรณี Error จริงๆ (เช่น ลืมเปิด Server, เน็ตหลุด)
+      console.error(err);
+      setMessages((m) => [...m, { role: "assistant", text: "เกิดข้อผิดพลาด: ไม่สามารถติดต่อ Server ได้" }]);
     } finally {
       setBusy(false);
     }
