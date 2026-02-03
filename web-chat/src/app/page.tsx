@@ -10,7 +10,6 @@ type Msg = {
 };
 
 function uuid() {
-  // Simple stable id (no external deps)
   return crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
@@ -20,24 +19,22 @@ export default function Page() {
     {
       id: uuid(),
       role: "assistant",
-      text: "สวัสดีครับ พิมพ์ข้อความเพื่อเริ่มแชทได้เลย",
+      text: "สวัสดีครับ มีอะไรให้ผมช่วยไหมครับ? พิมพ์ข้อความด้านล่างได้เลย",
       ts: Date.now(),
     },
   ]);
   const currentUser = {
-  id: "U-001",
-  name: "Somchai",
+    id: "U-001",
+    name: "Somchai",
   };
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // Create a session id once
   useEffect(() => {
     setSessionId(uuid());
   }, []);
 
-  // Auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
@@ -57,7 +54,7 @@ export default function Page() {
     const typingId = uuid();
     setMessages((m) => [
       ...m,
-      { id: typingId, role: "assistant", text: "กำลังตอบ...", ts: Date.now() },
+      { id: typingId, role: "assistant", text: "...", ts: Date.now() },
     ]);
 
     try {
@@ -74,32 +71,27 @@ export default function Page() {
 
       const data = await res.json().catch(() => ({}));
 
-      // Hard-fail safe
       let reply: string =
         typeof data?.reply === "string" && data.reply.trim() !== ""
           ? data.reply
-          : "ขอโทษครับ ระบบไม่สามารถตอบได้ในขณะนี้";
+          : "ขออภัยครับ ระบบขัดข้องชั่วคราว";
 
-      // If reply accidentally contains n8n template, replace with safe message
       if (reply.includes("{{$json") || reply.includes("={{$json")) {
-        reply = "ขอโทษครับ ระบบตอบกลับผิดรูปแบบ (ตรวจสอบ n8n response)";
+        reply = "ขออภัย ระบบตอบกลับผิดพลาด (n8n template error)";
       }
 
-      // Update session id if backend returns one
       if (typeof data?.session_id === "string" && data.session_id.trim() !== "") {
         setSessionId(data.session_id);
       }
 
-      // Replace typing placeholder with actual reply
       setMessages((m) =>
         m.map((x) => (x.id === typingId ? { ...x, text: reply, ts: Date.now() } : x))
       );
     } catch (e) {
-      // Replace typing placeholder with error
       setMessages((m) =>
         m.map((x) =>
           x.id === typingId
-            ? { ...x, text: "เกิดข้อผิดพลาดในการเชื่อมต่อ", ts: Date.now() }
+            ? { ...x, text: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", ts: Date.now() }
             : x
         )
       );
@@ -109,32 +101,69 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen bg-white p-6">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold">MVP Web Chat (Next.js → n8n → Gemini)</h1>
-
-        <div className="mt-4 rounded-xl border p-4">
-          <div className="h-[520px] overflow-y-auto rounded-lg border bg-white p-4">
-            <div className="space-y-6">
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className="max-w-[75%] rounded-lg border p-3">
-                    <div className="text-xs text-gray-500">{m.role}</div>
-                    <div className="whitespace-pre-wrap text-base font-medium">{m.text}</div>
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
+    <main className="flex min-h-screen flex-col bg-gray-50 text-slate-900">
+      {/* Header */}
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white/80 px-6 py-4 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+            AI
           </div>
+          <div>
+            <h1 className="text-lg font-bold leading-none">Smart Assistant</h1>
+            <p className="text-xs text-green-500 font-medium">● Online</p>
+          </div>
+        </div>
+        <div className="hidden sm:block text-[10px] text-gray-400 font-mono">
+          ID: {sessionId.slice(0, 8)}...
+        </div>
+      </header>
 
-          <div className="mt-4 flex gap-3">
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8 md:px-0">
+        <div className="mx-auto max-w-3xl space-y-6">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 shadow-sm transition-all ${
+                  m.role === "user"
+                    ? "bg-blue-600 text-white rounded-br-none"
+                    : "bg-white text-slate-800 border border-gray-100 rounded-bl-none"
+                }`}
+              >
+                <div className="text-[10px] mb-1 opacity-60 uppercase font-bold tracking-wider">
+                  {m.role === "user" ? "You" : "Assistant"}
+                </div>
+                <div className="whitespace-pre-wrap text-[15px] leading-relaxed">
+                  {m.text === "..." ? (
+                    <span className="flex gap-1 py-1">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400"></span>
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0.2s]"></span>
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0.4s]"></span>
+                    </span>
+                  ) : (
+                    m.text
+                  )}
+                </div>
+                <div className={`text-[9px] mt-1 text-right opacity-50`}>
+                  {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Input Area */}
+      <footer className="border-t bg-white p-4">
+        <div className="mx-auto max-w-3xl">
+          <div className="relative flex items-center gap-2">
             <input
-              className="flex-1 rounded-lg border px-4 py-3 text-base"
-              placeholder="พิมพ์ข้อความ..."
+              className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-6 py-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 transition-all"
+              placeholder="ถามอะไรบางอย่าง..."
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -143,19 +172,26 @@ export default function Page() {
               disabled={busy}
             />
             <button
-              className="rounded-lg bg-black px-6 py-3 text-white disabled:opacity-50"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 active:scale-95 disabled:bg-gray-300 disabled:shadow-none transition-all"
               onClick={send}
               disabled={!canSend}
             >
-              Send
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.5" 
+                className="h-5 w-5 rotate-45"
+              >
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
             </button>
           </div>
-
-          <div className="mt-3 text-sm text-gray-600">
-            Session: <span className="font-mono">{sessionId}</span>
-          </div>
+          <p className="mt-2 text-center text-[10px] text-gray-400 uppercase tracking-widest">
+            Next.js + n8n + Gemini MVP
+          </p>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }
